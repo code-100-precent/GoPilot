@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings as SettingsIcon, X, Save, Palette, Code, Keyboard, FileText, Bell, Shield, Sparkles } from 'lucide-react';
+import { Settings as SettingsIcon, X, Save, Palette, Code, Keyboard, FileText, Bell, Shield, Sparkles, CheckCircle, XCircle } from 'lucide-react';
 import { LLMCompletionService, LLMConfig } from '@/services/llmCompletionService';
 import { cn } from '@/utils/cn';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -224,23 +224,33 @@ const Settings: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
   });
 
   const [testingConnection, setTestingConnection] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<{ success: boolean; message: string } | null>(null);
 
   const handleTestConnection = async () => {
     if (!llmConfig.baseUrl || !llmConfig.model) {
       showAlert('请先填写 API 地址和模型名称', 'warning');
+      setConnectionStatus(null);
       return;
     }
     
     setTestingConnection(true);
+    setConnectionStatus(null);
     try {
       const success = await LLMCompletionService.testConnection(llmConfig);
       if (success) {
+        setConnectionStatus({ success: true, message: '连接成功！AI 补全功能已启用' });
         showAlert('连接成功！', 'success');
+        // 3秒后自动清除状态提示
+        setTimeout(() => {
+          setConnectionStatus(null);
+        }, 5000);
       } else {
+        setConnectionStatus({ success: false, message: '连接失败，请检查配置' });
         showAlert('连接失败，请检查配置', 'error');
       }
     } catch (error: any) {
       const errorMessage = error?.message || error?.toString() || '连接失败，请检查服务是否启动';
+      setConnectionStatus({ success: false, message: errorMessage });
       showAlert(errorMessage, 'error');
       console.error('LLM 连接测试失败:', error);
     } finally {
@@ -888,20 +898,42 @@ const Settings: React.FC<{ onClose?: () => void }> = ({ onClose }) => {
                         </p>
                       </div>
 
-                      <div className="flex gap-3 pt-4">
-                        <Button
-                          variant="primary"
-                          onClick={handleSaveLLMConfig}
-                        >
-                          保存配置
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          onClick={handleTestConnection}
-                          disabled={testingConnection}
-                        >
-                          {testingConnection ? '测试中...' : '测试连接'}
-                        </Button>
+                      <div className="space-y-3 pt-4">
+                        <div className="flex gap-3">
+                          <Button
+                            variant="primary"
+                            onClick={handleSaveLLMConfig}
+                          >
+                            保存配置
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            onClick={handleTestConnection}
+                            disabled={testingConnection}
+                          >
+                            {testingConnection ? '测试中...' : '测试连接'}
+                          </Button>
+                        </div>
+                        {connectionStatus && (
+                          <div className={`flex items-center gap-2 px-3 py-2 rounded-md ${
+                            connectionStatus.success 
+                              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' 
+                              : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+                          }`}>
+                            {connectionStatus.success ? (
+                              <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                            ) : (
+                              <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+                            )}
+                            <span className={`text-sm font-medium ${
+                              connectionStatus.success 
+                                ? 'text-green-800 dark:text-green-300' 
+                                : 'text-red-800 dark:text-red-300'
+                            }`}>
+                              {connectionStatus.message}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}

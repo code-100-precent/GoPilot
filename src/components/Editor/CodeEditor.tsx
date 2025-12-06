@@ -167,20 +167,36 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
       acceptSuggestionOnCommitCharacter: true,
       acceptSuggestionOnEnter: 'on',
       tabCompletion: 'on',
+      // 启用 inline suggestions（浮现代码提示）
+      inlineSuggest: {
+        enabled: true,
+      },
     });
 
     editorInstanceRef.current = editor;
 
     // 注册 LLM 代码补全提供者（异步加载）
-    let llmDisposable: monaco.IDisposable | null = null;
+    const disposables: monaco.IDisposable[] = [];
     (async () => {
       try {
         const { LLMCompletionProvider } = await import('@/components/Editor/LLMCompletionProvider');
         const llmProvider = new LLMCompletionProvider(editor, language);
-        llmDisposable = monaco.languages.registerCompletionItemProvider(language, llmProvider);
+        const disposable = monaco.languages.registerCompletionItemProvider(language, llmProvider);
+        disposables.push(disposable);
         console.log('LLM completion provider registered for language:', language);
       } catch (error) {
         console.warn('Failed to load LLM completion provider:', error);
+      }
+
+      // 注册 Inline Completion Provider（浮现代码提示）
+      try {
+        const { InlineCompletionProvider } = await import('@/components/Editor/InlineCompletionProvider');
+        const inlineProvider = new InlineCompletionProvider(editor, language);
+        const inlineDisposable = monaco.languages.registerInlineCompletionsProvider(language, inlineProvider);
+        disposables.push(inlineDisposable);
+        console.log('Inline completion provider registered for language:', language);
+      } catch (error) {
+        console.warn('Failed to load inline completion provider:', error);
       }
     })();
 
@@ -650,9 +666,14 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         clickHandler.dispose();
       }
       window.removeEventListener('navigate-to-position', navigateHandler as EventListener);
-      if (llmDisposable) {
-        llmDisposable.dispose();
-      }
+      // 清理所有 disposables
+      disposables.forEach(disposable => {
+        try {
+          disposable.dispose();
+        } catch (error) {
+          console.warn('Error disposing:', error);
+        }
+      });
       editor.dispose();
     };
   }, [language, readOnly, editorSettings.theme]);
