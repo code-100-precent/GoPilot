@@ -1457,6 +1457,7 @@ dependencies = [
  "base64 0.21.7",
  "chrono",
  "libc",
+ "plist",
  "regex",
  "reqwest",
  "serde",

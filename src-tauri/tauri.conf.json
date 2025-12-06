@@ -15,7 +15,13 @@
       "all": true
     },
     "cli": {
-      "args": []
+      "args": [
+        {
+          "name": "file",
+          "takesValue": true,
+          "multiple": true
+        }
+      ]
     },
     "bundle": {
       "active": true,

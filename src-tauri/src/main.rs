@@ -1,7 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{State, Window};
+use tauri::{Manager, State, Window};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -857,6 +857,23 @@ async fn kill_command(
 }
 
 fn main() {
+    // 获取命令行参数（用于处理拖放的文件）
+    // 在 macOS 上，拖放到应用图标上的文件会作为命令行参数传递
+    // 尝试从环境变量获取文件路径（macOS 拖放通常通过这种方式传递）
+    let file_paths: Vec<String> = std::env::args()
+        .skip(1) // 跳过程序名
+        .filter(|arg| {
+            // 过滤掉 Tauri 的内部参数，只保留文件路径
+            let is_valid = !arg.starts_with("--") && Path::new(arg).exists();
+            if is_valid {
+                println!("找到文件路径: {}", arg);
+            }
+            is_valid
+        })
+        .collect();
+    
+    println!("检测到的文件路径数量: {}", file_paths.len());
+
     tauri::Builder::default()
         .manage(AppState {
             theme: "dark".to_string(),
@@ -900,6 +917,27 @@ fn main() {
             open_folder_dialog,
             open_file_dialog,
         ])
+        .setup(move |app| {
+            // 如果有启动参数（拖放的文件），发送事件到前端
+            let file_paths_clone = file_paths.clone();
+            if !file_paths_clone.is_empty() {
+                println!("准备发送 {} 个文件路径到前端", file_paths_clone.len());
+                let window = app.get_window("main").unwrap();
+                // 延迟一点发送，确保前端已经准备好
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                    println!("发送 open-files 事件，文件路径: {:?}", file_paths_clone);
+                    if let Err(e) = window.emit("open-files", file_paths_clone.clone()) {
+                        eprintln!("发送事件失败: {:?}", e);
+                    } else {
+                        println!("事件发送成功");
+                    }
+                });
+            } else {
+                println!("没有检测到文件路径");
+            }
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

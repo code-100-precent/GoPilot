@@ -86,6 +86,8 @@ const Editor: React.FC = () => {
   const { recentFiles, addRecentFile, removeRecentFile } = useRecentFiles();
   const fileTreeRef = useRef<HTMLDivElement>(null);
   const lastShiftPressTime = useRef<number>(0);
+  const loadWorkspaceRef = useRef<((rootPath: string) => Promise<void>) | null>(null);
+  const handleFileSelectRef = useRef<((file: FileNode) => Promise<void>) | null>(null);
 
   // 双击 Shift 打开搜索框
   useEffect(() => {
@@ -160,6 +162,92 @@ const Editor: React.FC = () => {
     
     restoreLastProject();
   }, []); // 只在组件挂载时执行一次
+
+  // 监听从桌面拖放到应用图标的文件
+  useEffect(() => {
+    let isMounted = true;
+    
+    const setupTauriEventListeners = async () => {
+      // 检查是否在 Tauri 环境中
+      if (typeof window !== 'undefined' && (window as any).__TAURI__) {
+        try {
+          const { listen } = await import('@tauri-apps/api/event');
+          
+          // 监听 open-files 事件
+          console.log('设置 open-files 事件监听器');
+          const unlisten = await listen<string[]>('open-files', async (event) => {
+            if (!isMounted) return;
+            
+            console.log('收到 open-files 事件:', event.payload);
+            const filePaths = event.payload;
+            if (filePaths && filePaths.length > 0) {
+              console.log(`准备处理 ${filePaths.length} 个文件/文件夹`);
+              // 处理每个文件/文件夹路径
+              for (const path of filePaths) {
+                console.log(`处理路径: ${path}`);
+                try {
+                  // 检查路径是否存在
+                  const exists = await FileSystemService.pathExists(path);
+                  if (!exists) {
+                    console.warn(`路径不存在: ${path}`);
+                    continue;
+                  }
+
+                  // 检查是文件还是文件夹
+                  const isDirectory = await FileSystemService.readDirectory(path)
+                    .then(() => true)
+                    .catch(() => false);
+
+                  if (isDirectory) {
+                    // 如果是文件夹，打开为工作区
+                    // 使用 ref 来访问最新的 loadWorkspace
+                    if (loadWorkspaceRef.current) {
+                      loadWorkspaceRef.current(path).catch((error) => {
+                        console.error(`打开工作区失败: ${path}`, error);
+                        showAlert(`无法打开工作区: ${path}`, 'error');
+                      });
+                    }
+                  } else {
+                    // 如果是文件，创建 FileNode 并打开
+                    const fileName = path.split(/[/\\]/).pop() || 'untitled';
+                    const fileNode: FileNode = {
+                      name: fileName,
+                      path: path,
+                      type: 'file',
+                    };
+                    // 使用 ref 来访问最新的 handleFileSelect
+                    if (handleFileSelectRef.current) {
+                      handleFileSelectRef.current(fileNode).catch((error) => {
+                        console.error(`打开文件失败: ${path}`, error);
+                        showAlert(`无法打开文件: ${path}`, 'error');
+                      });
+                    }
+                  }
+                } catch (error) {
+                  console.error(`处理文件路径失败: ${path}`, error);
+                  showAlert(`无法打开: ${path}`, 'error');
+                }
+              }
+            }
+          });
+
+          // 返回清理函数
+          return () => {
+            isMounted = false;
+            unlisten();
+          };
+        } catch (error) {
+          console.warn('无法设置 Tauri 事件监听器:', error);
+        }
+      }
+    };
+
+    const cleanup = setupTauriEventListeners();
+    return () => {
+      isMounted = false;
+      cleanup.then(cleanupFn => cleanupFn?.());
+    };
+  }, []); // 空依赖数组，使用 ref 或函数式更新来访问最新值
 
   // 查找所有引用
   const handleFindReferences = useCallback(async (
@@ -430,6 +518,15 @@ const Editor: React.FC = () => {
     }
   }, [fileContent, tabs, isFileModified, addRecentFile, saveProjectState]);
 
+  // 使用 ref 存储函数引用，以便在 useEffect 中访问最新版本
+  useEffect(() => {
+    loadWorkspaceRef.current = loadWorkspace;
+  }, [loadWorkspace]);
+
+  useEffect(() => {
+    handleFileSelectRef.current = handleFileSelect;
+  }, [handleFileSelect]);
+
   // 打开文件夹 - 使用 Tauri 文件对话框
   const handleOpenFolder = useCallback(async () => {
     try {
@@ -447,10 +544,16 @@ const Editor: React.FC = () => {
     }
   }, [loadWorkspace]);
 
-  // 打开文件 - 使用 Tauri 文件对话框
-  const handleOpenFile = useCallback(async () => {
-    const filePath = await DialogService.openFile();
-    if (filePath) {
+  // 根据路径打开文件（用于拖放功能）
+  const openFile = useCallback(async (filePath: string) => {
+    try {
+      // 检查文件是否存在
+      const exists = await FileSystemService.pathExists(filePath);
+      if (!exists) {
+        showAlert(`文件不存在: ${filePath}`, 'error');
+        return;
+      }
+
       const fileName = filePath.split(/[/\\]/).pop() || 'untitled';
       const fileNode: FileNode = {
         name: fileName,
@@ -458,8 +561,19 @@ const Editor: React.FC = () => {
         type: 'file',
       };
       await handleFileSelect(fileNode);
+    } catch (error: any) {
+      console.error('打开文件失败:', error);
+      showAlert(error?.message || '打开文件失败', 'error');
     }
   }, [handleFileSelect]);
+
+  // 打开文件 - 使用 Tauri 文件对话框
+  const handleOpenFile = useCallback(async () => {
+    const filePath = await DialogService.openFile();
+    if (filePath) {
+      await openFile(filePath);
+    }
+  }, [openFile]);
 
   // 切换标签页
   const handleTabSelect = useCallback((tabId: string) => {

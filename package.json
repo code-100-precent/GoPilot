@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build && npm run fix-info-plist",
+    "fix-info-plist": "node src-tauri/scripts/fix-info-plist.cjs"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
