@@ -179,6 +179,19 @@ async fn read_directory_tree(path: String, max_depth: Option<u32>) -> Result<Vec
             Err(e) => return Err(e.to_string()),
         }
         
+        // 排序：文件夹优先，然后按名称排序
+        entries.sort_by(|a, b| {
+            // 先按类型排序：directory 优先于 file
+            match (a.entry_type.as_str(), b.entry_type.as_str()) {
+                ("directory", "file") => std::cmp::Ordering::Less,
+                ("file", "directory") => std::cmp::Ordering::Greater,
+                _ => {
+                    // 同类型时按名称排序（不区分大小写）
+                    a.name.to_lowercase().cmp(&b.name.to_lowercase())
+                }
+            }
+        });
+        
         Ok(entries)
     }
     
@@ -274,7 +287,11 @@ async fn execute_command(command: String, working_dir: Option<String>) -> Result
             .current_dir(working_dir.unwrap_or_else(|| ".".to_string()))
             .output()
     } else {
-        Command::new("sh")
+        // 在 macOS/Linux 上，使用用户的默认 shell 并加载登录配置
+        // 这样可以确保 PATH 等环境变量正确设置
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        Command::new(&shell)
+            .arg("-l")  // 登录 shell，会加载配置文件
             .arg("-c")
             .arg(&command)
             .current_dir(working_dir.unwrap_or_else(|| ".".to_string()))
@@ -757,8 +774,12 @@ async fn execute_command_stream(
             .spawn()
             .map_err(|e| e.to_string())?
     } else {
-        let mut cmd = Command::new("sh");
-        cmd.arg("-c")
+        // 在 macOS/Linux 上，使用用户的默认 shell 并加载登录配置
+        // 这样可以确保 PATH 等环境变量正确设置
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+        let mut cmd = Command::new(&shell);
+        cmd.arg("-l")  // 登录 shell，会加载配置文件
+            .arg("-c")
             .arg(&command)
             .current_dir(&working_dir)
             .stdout(Stdio::piped())

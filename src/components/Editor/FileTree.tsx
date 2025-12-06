@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   File, 
   Folder, 
@@ -71,6 +71,7 @@ const FileTree: React.FC<FileTreeProps> = ({
   const [editingState, setEditingState] = useState<EditingState | null>(null);
   const [editingValue, setEditingValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const [isComposing, setIsComposing] = useState(false); // 用于检测输入法状态
 
   // 当 expandedNodes 改变时，保存到 localStorage
   useEffect(() => {
@@ -279,6 +280,24 @@ const FileTree: React.FC<FileTreeProps> = ({
     }
   }, [editingState]);
 
+  // 处理输入法开始
+  const handleCompositionStart = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(true);
+  }, []);
+
+  // 处理输入法更新
+  const handleCompositionUpdate = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
+    // 更新输入值，但不提交
+    setEditingValue(e.currentTarget.value);
+  }, []);
+
+  // 处理输入法结束
+  const handleCompositionEnd = useCallback((e: React.CompositionEvent<HTMLInputElement>) => {
+    setIsComposing(false);
+    // 确保输入值正确更新
+    setEditingValue(e.currentTarget.value);
+  }, []);
+
   const getFileIcon = (node: FileNode) => {
     if (node.type === 'directory') {
       return expandedNodes.has(node.path) ? (
@@ -370,6 +389,11 @@ const FileTree: React.FC<FileTreeProps> = ({
               value={editingValue}
               onChange={(e) => setEditingValue(e.target.value)}
               onKeyDown={(e) => {
+                // 如果正在输入中文，不处理 Enter 键
+                if (isComposing && e.key === 'Enter') {
+                  e.preventDefault();
+                  return;
+                }
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   confirmEditing();
@@ -378,6 +402,9 @@ const FileTree: React.FC<FileTreeProps> = ({
                   cancelEditing();
                 }
               }}
+              onCompositionStart={handleCompositionStart}
+              onCompositionUpdate={handleCompositionUpdate}
+              onCompositionEnd={handleCompositionEnd}
               onBlur={() => {
                 // 延迟执行，以便点击确认按钮时不会立即取消
                 setTimeout(() => {
@@ -455,6 +482,11 @@ const FileTree: React.FC<FileTreeProps> = ({
               value={editingValue}
               onChange={(e) => setEditingValue(e.target.value)}
               onKeyDown={(e) => {
+                // 如果正在输入中文，不处理 Enter 键
+                if (isComposing && e.key === 'Enter') {
+                  e.preventDefault();
+                  return;
+                }
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   confirmEditing();
@@ -463,6 +495,9 @@ const FileTree: React.FC<FileTreeProps> = ({
                   cancelEditing();
                 }
               }}
+              onCompositionStart={handleCompositionStart}
+              onCompositionUpdate={handleCompositionUpdate}
+              onCompositionEnd={handleCompositionEnd}
               onBlur={() => {
                 setTimeout(() => {
                   if (editingState) {
