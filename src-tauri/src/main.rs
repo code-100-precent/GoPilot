@@ -239,6 +239,60 @@ async fn path_exists(path: String) -> Result<bool, String> {
     Ok(Path::new(&path).exists())
 }
 
+// 下载文件命令
+#[tauri::command]
+async fn download_file(url: String, save_path: String) -> Result<(), String> {
+    println!("开始下载文件: {} -> {}", url, save_path);
+    
+    // 创建 reqwest 客户端，设置超时和用户代理
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(300)) // 5分钟超时
+        .user_agent("GoPilot/1.0.0")
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    
+    println!("发送 HTTP 请求...");
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("下载失败: {}", e))?;
+    
+    println!("收到响应，状态码: {}", response.status());
+    
+    if !response.status().is_success() {
+        return Err(format!("HTTP 错误: {} - {}", response.status(), response.status().canonical_reason().unwrap_or("未知错误")));
+    }
+    
+    // 获取内容长度（如果可用）
+    let content_length = response.content_length();
+    if let Some(len) = content_length {
+        println!("文件大小: {} 字节", len);
+    }
+    
+    println!("读取响应数据...");
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("读取响应失败: {}", e))?;
+    
+    println!("数据读取完成，大小: {} 字节", bytes.len());
+    
+    // 确保目录存在
+    if let Some(parent) = Path::new(&save_path).parent() {
+        println!("创建目录: {:?}", parent);
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("创建目录失败: {} - {}", parent.display(), e))?;
+    }
+    
+    println!("保存文件到: {}", save_path);
+    fs::write(&save_path, bytes.as_ref())
+        .map_err(|e| format!("保存文件失败: {} - {}", save_path, e))?;
+    
+    println!("文件下载完成: {}", save_path);
+    Ok(())
+}
+
 // 对话框相关命令
 #[tauri::command]
 async fn open_folder_dialog() -> Result<Option<String>, String> {
@@ -336,6 +390,16 @@ async fn is_git_repository(path: String) -> Result<bool, String> {
         .output();
     
     Ok(output.is_ok() && output.unwrap().status.success())
+}
+
+#[tauri::command]
+async fn git_init(path: String) -> Result<(), String> {
+    Command::new("git")
+        .args(["init"])
+        .current_dir(&path)
+        .output()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -941,6 +1005,8 @@ fn main() {
             git_branch_graph,
             open_folder_dialog,
             open_file_dialog,
+            git_init,
+            download_file,
         ])
         .setup(move |app| {
             // 如果有启动参数（拖放的文件），发送事件到前端

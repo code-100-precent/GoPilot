@@ -7,7 +7,6 @@ import FileSearch from '@/components/Editor/FileSearch';
 import { FileSystemService, FileSystemEntry } from '@/services/fileSystem';
 import { useRecentFiles } from '@/hooks/useRecentFiles';
 import { 
-  Play, 
   FolderOpen, 
   Settings as SettingsIcon, 
   Search,
@@ -15,10 +14,10 @@ import {
   Terminal as TerminalIcon,
   Save,
   FilePlus,
-  History,
   FileText,
   Clock,
-  X
+  X,
+  Package
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { showAlert } from '@/utils/notification';
@@ -35,6 +34,8 @@ import { Eye, EyeOff } from 'lucide-react';
 import RunConfigurations, { RunConfiguration } from '@/components/Editor/RunConfigurations';
 import { ProjectStateService, ProjectState } from '@/services/projectState';
 import GitPanel from '@/components/Editor/GitPanel';
+import ExtensionsPanel from '@/components/Editor/ExtensionsPanel';
+import ExtensionViewPanel from '@/components/Editor/ExtensionViewPanel';
 import { hasMainFunction } from '@/services/goMainDetector';
 
 interface AppSettings {
@@ -52,11 +53,25 @@ const Editor: React.FC = () => {
   const [fileContent, setFileContent] = useState<Record<string, string>>({});
   const [isFileModified, setIsFileModified] = useState<Record<string, boolean>>({});
   const [showTerminal, setShowTerminal] = useState(false);
-  const [terminalWorkingDir, setTerminalWorkingDir] = useState<string | null>(null);
   const terminalPanelRef = React.useRef<TerminalPanelRef | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGit, setShowGit] = useState(false);
+  const [showExtensions, setShowExtensions] = useState(false);
+  const [extensionViewContainers, setExtensionViewContainers] = useState<Array<{
+    id: string;
+    title: string;
+    icon: string;
+    extensionId: string;
+    location: 'sidebar' | 'panel' | 'explorer';
+    views: Array<{
+      id: string;
+      name: string;
+      extensionId: string;
+      viewContainerId: string;
+    }>;
+  }>>([]);
+  const [sidebarActiveTab, setSidebarActiveTab] = useState<'files' | string>('files');
   const [showReferences, setShowReferences] = useState(false);
   const [references, setReferences] = useState<Array<{
     filePath: string;
@@ -88,6 +103,27 @@ const Editor: React.FC = () => {
   const lastShiftPressTime = useRef<number>(0);
   const loadWorkspaceRef = useRef<((rootPath: string) => Promise<void>) | null>(null);
   const handleFileSelectRef = useRef<((file: FileNode) => Promise<void>) | null>(null);
+
+  // 监听扩展视图变化
+  useEffect(() => {
+    const loadExtensionViews = async () => {
+      try {
+        const { extensionViewsService } = await import('@/services/extensionViews');
+        const unsubscribe = extensionViewsService.subscribe((containers) => {
+          setExtensionViewContainers(containers);
+        });
+        
+        // 初始加载
+        setExtensionViewContainers(extensionViewsService.getViewContainers());
+        
+        return unsubscribe;
+      } catch (error) {
+        console.error('加载扩展视图服务失败:', error);
+      }
+    };
+
+    loadExtensionViews();
+  }, []);
 
   // 双击 Shift 打开搜索框
   useEffect(() => {
@@ -951,11 +987,24 @@ const Editor: React.FC = () => {
             <Search className="w-5 h-5" />
           </button>
           <button
-            onClick={() => setShowGit(true)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+            onClick={() => setShowGit(!showGit)}
+            className={cn(
+              "p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors",
+              showGit && "bg-gray-100 dark:bg-gray-700"
+            )}
             title="Git 管理"
           >
             <GitBranch className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setShowExtensions(!showExtensions)}
+            className={cn(
+              "p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors",
+              showExtensions && "bg-gray-100 dark:bg-gray-700"
+            )}
+            title="扩展"
+          >
+            <Package className="w-5 h-5" />
           </button>
         </div>
         <div className="flex items-center gap-2">
@@ -1021,12 +1070,54 @@ const Editor: React.FC = () => {
               className="bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col flex-shrink-0 relative"
               style={{ width: `${appSettings.sidebarWidth || 250}px` }}
             >
+              {/* 侧边栏标签页 */}
+              <div className="flex border-b dark:border-gray-700 overflow-x-auto">
+                <button
+                  onClick={() => setSidebarActiveTab('files')}
+                  className={cn(
+                    "px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap border-b-2",
+                    sidebarActiveTab === 'files'
+                      ? "border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                      : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                  )}
+                >
+                  文件
+                </button>
+                {extensionViewContainers
+                  .filter(container => container.location === 'sidebar')
+                  .map((container) => (
+                    <button
+                      key={container.id}
+                      onClick={() => setSidebarActiveTab(container.id)}
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap border-b-2 flex items-center gap-2",
+                        sidebarActiveTab === container.id
+                          ? "border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20"
+                          : "border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                      )}
+                    >
+                      {container.icon && (
+                        <img 
+                          src={container.icon} 
+                          alt={container.title}
+                          className="w-4 h-4"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      )}
+                      <span>{container.title}</span>
+                    </button>
+                  ))}
+              </div>
+
+              {/* 侧边栏内容 */}
               <div className="flex-1 overflow-hidden">
                 {isLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-color)' }}></div>
                   </div>
-                ) : (
+                ) : sidebarActiveTab === 'files' ? (
                   <FileTree
                     files={files}
                     onFileSelect={handleFileSelect}
@@ -1036,6 +1127,15 @@ const Editor: React.FC = () => {
                     onCreateFolder={handleCreateFolder}
                     onRename={handleRenameFile}
                   />
+                ) : (
+                  extensionViewContainers
+                    .filter(container => container.id === sidebarActiveTab)
+                    .map((container) => (
+                      <ExtensionViewPanel
+                        key={container.id}
+                        container={container}
+                      />
+                    ))
                 )}
               </div>
             </div>
@@ -1071,7 +1171,7 @@ const Editor: React.FC = () => {
         )}
 
         {/* Editor Area (包含 TabBar) */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden relative">
           {/* Tab Bar (在编辑器区域内部) */}
           {tabs.length > 0 && (
             <TabBar
@@ -1310,6 +1410,23 @@ const Editor: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Right Side Panels */}
+        <div className="absolute right-0 top-0 bottom-0 flex z-40">
+          {/* Git Panel - 侧边栏 */}
+          {showGit && (
+            <div className="w-96 bg-white dark:bg-gray-800 border-l dark:border-gray-700 shadow-lg">
+              <GitPanel workspaceRoot={workspaceRoot} onClose={() => setShowGit(false)} />
+            </div>
+          )}
+
+          {/* Extensions Panel - 右侧面板 */}
+          {showExtensions && (
+            <div className="w-80 bg-white dark:bg-gray-800 border-l dark:border-gray-700 shadow-lg">
+              <ExtensionsPanel onClose={() => setShowExtensions(false)} />
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Terminal Panel */}
@@ -1329,7 +1446,6 @@ const Editor: React.FC = () => {
           className="absolute bottom-4 right-4 p-3 text-white rounded-full shadow-lg transition-colors z-10"
           style={{ backgroundColor: 'var(--accent-color)' }}
           onMouseEnter={(e) => {
-            const color = getComputedStyle(document.documentElement).getPropertyValue('--accent-color');
             const rgb = getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb');
             e.currentTarget.style.backgroundColor = `rgba(${rgb}, 0.9)`;
           }}
@@ -1518,14 +1634,6 @@ const Editor: React.FC = () => {
         isOpen={showSearch}
       />
 
-      {/* Git Panel */}
-      {showGit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full h-full max-w-4xl max-h-[90vh] bg-white dark:bg-gray-900 rounded-lg shadow-2xl overflow-hidden">
-            <GitPanel workspaceRoot={workspaceRoot} onClose={() => setShowGit(false)} />
-          </div>
-        </div>
-      )}
 
       {/* Settings Modal */}
       {showSettings && (

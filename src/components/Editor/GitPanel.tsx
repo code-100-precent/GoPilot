@@ -295,13 +295,68 @@ const GitPanel: React.FC<GitPanelProps> = ({ workspaceRoot, onClose }) => {
     );
   }
 
+  const handleInitGit = useCallback(async () => {
+    if (!workspaceRoot) return;
+    if (!confirm(`确定要在 ${workspaceRoot} 初始化 Git 仓库吗？`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      await GitService.initGit(workspaceRoot);
+      showAlert('Git 仓库初始化成功', 'success');
+      await loadGitInfo();
+    } catch (error: any) {
+      showAlert('初始化失败: ' + (error.message || error), 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceRoot, loadGitInfo]);
+
   if (!isGitRepo) {
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="text-center text-gray-500 dark:text-gray-400">
-          <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
-          <p className="mb-2">当前目录不是 Git 仓库</p>
-          <p className="text-sm">请在终端中运行 <code className="bg-gray-200 dark:bg-gray-700 px-2 py-1 rounded">git init</code> 初始化仓库</p>
+      <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+        {/* Header with close button */}
+        <div className="flex items-center justify-between px-4 py-2 bg-white dark:bg-gray-800 border-b dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <GitBranch className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <span className="font-semibold text-gray-900 dark:text-white">Git</span>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="关闭"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        
+        {/* Content */}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center text-gray-500 dark:text-gray-400">
+            <GitBranch className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p className="mb-2 text-lg font-medium">当前目录不是 Git 仓库</p>
+            <p className="text-sm mb-6">初始化 Git 仓库以开始版本控制</p>
+            <button
+              onClick={handleInitGit}
+              disabled={isLoading}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 mx-auto"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>初始化中...</span>
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4" />
+                  <span>初始化 Git 仓库</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     );

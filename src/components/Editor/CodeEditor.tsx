@@ -213,6 +213,22 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 
     editorInstanceRef.current = editor;
 
+    // 注册编辑器到扩展 API
+    (async () => {
+      try {
+        const { vscode } = await import('@/services/vscodeExtensionAPI');
+        vscode.setActiveEditor(editor);
+        
+        // 注册模型
+        const model = editor.getModel();
+        if (model) {
+          vscode.registerModel(model.uri.toString(), model);
+        }
+      } catch (error) {
+        console.warn('注册编辑器到扩展 API 失败:', error);
+      }
+    })();
+
     // 注册 LLM 代码补全提供者（异步加载）
     const disposables: monaco.IDisposable[] = [];
     (async () => {

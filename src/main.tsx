@@ -31,6 +31,15 @@ self.MonacoEnvironment = {
 // 初始化主题
 initTheme();
 
+// 加载扩展系统
+if (window.__TAURI__) {
+  import('@/services/extensionLoader').then(({ ExtensionLoader }) => {
+    ExtensionLoader.loadAllExtensions().catch((error) => {
+      console.error('加载扩展失败:', error);
+    });
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
         <App />

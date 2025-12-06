@@ -55,6 +55,18 @@ export class GitService {
   }
 
   /**
+   * 初始化 Git 仓库
+   */
+  static async initGit(path: string): Promise<void> {
+    try {
+      await invoke('git_init', { path });
+    } catch (error) {
+      console.error('初始化 Git 仓库失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 获取 Git 状态
    */
   static async getStatus(path: string): Promise<GitStatus[]> {
