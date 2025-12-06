@@ -78,6 +78,44 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   useEffect(() => {
     if (!editorRef.current) return;
 
+    // 注册 go.mod 和 go.sum 语言（使用 toml 作为基础，因为它们格式类似）
+    if (!monaco.languages.getLanguages().find(l => l.id === 'go.mod')) {
+      monaco.languages.register({ id: 'go.mod' });
+      monaco.languages.setMonarchTokensProvider('go.mod', {
+        tokenizer: {
+          root: [
+            [/^module\s+/, 'keyword'],
+            [/^go\s+/, 'keyword'],
+            [/^require\s+/, 'keyword'],
+            [/^replace\s+/, 'keyword'],
+            [/^exclude\s+/, 'keyword'],
+            [/^retract\s+/, 'keyword'],
+            [/\/\/.*$/, 'comment'],
+            [/\/\*[\s\S]*?\*\//, 'comment'],
+            [/"[^"]*"/, 'string'],
+            [/[a-zA-Z_$][a-zA-Z0-9_$]*/, 'identifier'],
+            [/\d+\.\d+/, 'number'],
+            [/[=]/, 'operator'],
+          ],
+        },
+      });
+    }
+
+    if (!monaco.languages.getLanguages().find(l => l.id === 'go.sum')) {
+      monaco.languages.register({ id: 'go.sum' });
+      monaco.languages.setMonarchTokensProvider('go.sum', {
+        tokenizer: {
+          root: [
+            [/^[a-zA-Z0-9.\-_\/]+/, 'identifier'],
+            [/\/\/\s+go\.sum/, 'comment'],
+            [/h1:[a-zA-Z0-9+\/]+=/, 'string'],
+            [/h1:[a-zA-Z0-9+\/]+$/, 'string'],
+            [/[\s]+/, 'white'],
+          ],
+        },
+      });
+    }
+
     // 创建编辑器实例
     const editor = monaco.editor.create(editorRef.current, {
       value: value || '',

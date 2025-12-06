@@ -800,9 +800,9 @@ const Editor: React.FC = () => {
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (isResizing) {
       const newWidth = Math.max(150, Math.min(500, e.clientX));
-      setAppSettings({ ...appSettings, sidebarWidth: newWidth });
+      setAppSettings((prev) => ({ ...prev, sidebarWidth: newWidth }));
     }
-  }, [isResizing, appSettings, setAppSettings]);
+  }, [isResizing, setAppSettings]);
 
   const handleMouseUp = useCallback(() => {
     setIsResizing(false);
@@ -1015,43 +1015,59 @@ const Editor: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar - File Tree (在外层) */}
         {workspaceRoot && (
-          <div
-            ref={fileTreeRef}
-            className="bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col flex-shrink-0"
-            style={{ width: `${appSettings.sidebarWidth || 250}px` }}
-          >
-            <div className="flex-1 overflow-hidden">
-              {isLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-color)' }}></div>
-                </div>
-              ) : (
-                <FileTree
-                  files={files}
-                  onFileSelect={handleFileSelect}
-                  selectedFile={activeTabId || undefined}
-                  onContextMenu={handleFileTreeContextMenu}
-                  onCreateFile={handleCreateFile}
-                  onCreateFolder={handleCreateFolder}
-                  onRename={handleRenameFile}
-                />
-              )}
-            </div>
-            {/* Resize Handle */}
+          <>
             <div
-              className="w-1 cursor-col-resize transition-colors"
-              style={{ backgroundColor: 'var(--accent-color)' }}
+              ref={fileTreeRef}
+              className="bg-white dark:bg-gray-800 border-r dark:border-gray-700 flex flex-col flex-shrink-0 relative"
+              style={{ width: `${appSettings.sidebarWidth || 250}px` }}
+            >
+              <div className="flex-1 overflow-hidden">
+                {isLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--accent-color)' }}></div>
+                  </div>
+                ) : (
+                  <FileTree
+                    files={files}
+                    onFileSelect={handleFileSelect}
+                    selectedFile={activeTabId || undefined}
+                    onContextMenu={handleFileTreeContextMenu}
+                    onCreateFile={handleCreateFile}
+                    onCreateFolder={handleCreateFolder}
+                    onRename={handleRenameFile}
+                  />
+                )}
+              </div>
+            </div>
+            {/* Resize Handle - 放在 sidebar 外面，更明显 */}
+            <div
+              className="w-1 cursor-col-resize transition-all hover:w-1 hover:bg-opacity-100 flex-shrink-0 relative group"
+              style={{ 
+                backgroundColor: isResizing ? 'var(--accent-color)' : 'transparent',
+                opacity: isResizing ? 1 : 0.3
+              }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--accent-color)';
-                e.currentTarget.style.opacity = '0.8';
+                if (!isResizing) {
+                  e.currentTarget.style.backgroundColor = 'var(--accent-color)';
+                  e.currentTarget.style.opacity = '0.6';
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'var(--accent-color)';
-                e.currentTarget.style.opacity = '0.5';
+                if (!isResizing) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.opacity = '0.3';
+                }
               }}
               onMouseDown={handleMouseDown}
-            />
-          </div>
+              title="拖拽调整侧边栏宽度"
+            >
+              {/* 视觉指示器 */}
+              <div 
+                className="absolute inset-y-0 left-1/2 transform -translate-x-1/2 w-0.5 bg-current opacity-50 group-hover:opacity-100 transition-opacity"
+                style={{ color: 'var(--accent-color)' }}
+              />
+            </div>
+          </>
         )}
 
         {/* Editor Area (包含 TabBar) */}

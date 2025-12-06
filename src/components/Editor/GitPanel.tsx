@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { GitBranch, GitCommit, Plus, RefreshCw, Upload, Download, Check, X, AlertCircle, Eye, GitMerge } from 'lucide-react';
+import { GitBranch, GitCommit, Plus, RefreshCw, Upload, Download, Check, X, AlertCircle, Eye, GitMerge, Trash2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { GitService, GitStatus, GitBranch as GitBranchType, GitCommit as GitCommitType, GitDiff } from '@/services/gitService';
+import { FileSystemService } from '@/services/fileSystem';
 import { showAlert } from '@/utils/notification';
 
 interface GitPanelProps {
@@ -181,6 +182,25 @@ const GitPanel: React.FC<GitPanelProps> = ({ workspaceRoot, onClose }) => {
       await loadGitInfo();
     } catch (error: any) {
       showAlert('撤销失败: ' + (error.message || error), 'error');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceRoot, loadGitInfo]);
+
+  const handleDeleteFile = useCallback(async (filePath: string) => {
+    if (!workspaceRoot) return;
+    if (!confirm(`确定要删除文件 ${filePath} 吗？此操作不可撤销。`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const fullPath = workspaceRoot + '/' + filePath;
+      await FileSystemService.deleteFile(fullPath);
+      showAlert('文件已删除', 'success');
+      await loadGitInfo();
+    } catch (error: any) {
+      showAlert('删除失败: ' + (error.message || error), 'error');
     } finally {
       setIsLoading(false);
     }
@@ -441,16 +461,30 @@ const GitPanel: React.FC<GitPanelProps> = ({ workspaceRoot, onClose }) => {
                         已暂存
                       </span>
                     )}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewDiff(item.path);
-                      }}
-                      className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors"
-                      title="查看差异"
-                    >
-                      <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </button>
+                    {item.status !== 'untracked' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewDiff(item.path);
+                        }}
+                        className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/20 rounded transition-colors"
+                        title="查看差异"
+                      >
+                        <Eye className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </button>
+                    )}
+                    {item.status === 'untracked' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteFile(item.path);
+                        }}
+                        className="p-1 hover:bg-red-100 dark:hover:bg-red-900/20 rounded transition-colors"
+                        title="删除文件"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-600 dark:text-red-400" />
+                      </button>
+                    )}
                     {(item.status === 'modified' || item.status === 'added') && (
                       <button
                         onClick={(e) => {

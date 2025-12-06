@@ -726,6 +726,11 @@ async fn git_branch_graph(path: String) -> Result<serde_json::Value, String> {
         let graph_chars: String = line.chars().take_while(|c| !c.is_alphanumeric() && *c != '|').collect();
         let commit_part = line.trim_start_matches(|c: char| !c.is_alphanumeric() && c != '|');
         
+        // 如果 commit_part 为空或只包含空白字符，说明这行只有图形字符，跳过
+        if commit_part.trim().is_empty() {
+            continue;
+        }
+        
         let parts: Vec<&str> = commit_part.split('|').collect();
         // 至少需要4个部分：hash, message, author, timestamp
         if parts.len() >= 4 {
@@ -741,9 +746,8 @@ async fn git_branch_graph(path: String) -> Result<serde_json::Value, String> {
                 "timestamp": timestamp,
                 "refs": parts.get(4).unwrap_or(&"").trim(),
             }));
-        } else {
-            eprintln!("警告: 提交行格式不正确，部分数量: {}, 内容: {}", parts.len(), line);
         }
+        // 如果部分数量不足，说明这行只包含图形字符，静默跳过（不再打印警告）
     }
     
     Ok(serde_json::json!({
