@@ -503,9 +503,9 @@ export class ExtensionService {
       
       try {
         downloadResult = await this.downloadVSIX(extension, (loaded, total) => {
-          downloadProgress = Math.round((loaded / total) * 40); // 下载占 40%
-          onProgress?.(`正在下载扩展... (${Math.round((loaded / total) * 100)}%)`, 10 + downloadProgress);
-        });
+        downloadProgress = Math.round((loaded / total) * 40); // 下载占 40%
+        onProgress?.(`正在下载扩展... (${Math.round((loaded / total) * 100)}%)`, 10 + downloadProgress);
+      });
       } catch (downloadError: any) {
         console.error('下载扩展失败:', downloadError);
         throw new Error(`下载扩展失败: ${downloadError.message || downloadError}`);
@@ -517,46 +517,46 @@ export class ExtensionService {
       let vsixPath = '';
       if (window.__TAURI__) {
         try {
-          const path = await import('@tauri-apps/api/path');
-          const fs = await import('@tauri-apps/api/fs');
-          
-          const appData = await path.appDataDir();
-          const extensionsDir = await path.join(appData, 'extensions');
-          
-          // 确保扩展目录存在
-          try {
-            await fs.createDir(extensionsDir, { recursive: true });
-          } catch (e: any) {
-            // 目录可能已存在，忽略错误
-            if (!e.message?.includes('already exists')) {
-              console.warn('创建扩展目录时出错:', e);
-            }
+        const path = await import('@tauri-apps/api/path');
+        const fs = await import('@tauri-apps/api/fs');
+        
+        const appData = await path.appDataDir();
+        const extensionsDir = await path.join(appData, 'extensions');
+        
+        // 确保扩展目录存在
+        try {
+          await fs.createDir(extensionsDir, { recursive: true });
+        } catch (e: any) {
+          // 目录可能已存在，忽略错误
+          if (!e.message?.includes('already exists')) {
+            console.warn('创建扩展目录时出错:', e);
           }
-          
-          // 保存 VSIX 文件 - 使用 join 来构建路径
-          const fileName = `${extensionId}-${extension.versions[0].version}.vsix`;
-          vsixPath = await path.join(extensionsDir, fileName);
-          
-          onProgress?.('正在保存文件...', 70);
-          
-          // 检查下载结果是否是文件引用（Tauri 环境）
-          if (downloadResult && typeof downloadResult === 'object' && (downloadResult as any)._isFileReference) {
-            // 直接移动文件，而不是读取到内存
-            const tempPath = (downloadResult as any).path;
-            try {
-              // 使用 Rust 命令移动文件（更高效）
-              const { invoke } = await import('@tauri-apps/api/tauri');
-              await invoke('rename_file', {
-                oldPath: tempPath,
-                newPath: vsixPath,
-              });
-              console.log('文件已移动到:', vsixPath);
-            } catch (moveError: any) {
-              console.warn('移动文件失败，尝试复制:', moveError);
-              // 如果移动失败，尝试复制（需要读取文件，但这是备用方案）
+        }
+        
+        // 保存 VSIX 文件 - 使用 join 来构建路径
+        const fileName = `${extensionId}-${extension.versions[0].version}.vsix`;
+        vsixPath = await path.join(extensionsDir, fileName);
+        
+        onProgress?.('正在保存文件...', 70);
+        
+        // 检查下载结果是否是文件引用（Tauri 环境）
+        if (downloadResult && typeof downloadResult === 'object' && (downloadResult as any)._isFileReference) {
+          // 直接移动文件，而不是读取到内存
+          const tempPath = (downloadResult as any).path;
+          try {
+            // 使用 Rust 命令移动文件（更高效）
+            const { invoke } = await import('@tauri-apps/api/tauri');
+            await invoke('rename_file', {
+              oldPath: tempPath,
+              newPath: vsixPath,
+            });
+            console.log('文件已移动到:', vsixPath);
+          } catch (moveError: any) {
+            console.warn('移动文件失败，尝试复制:', moveError);
+            // 如果移动失败，尝试复制（需要读取文件，但这是备用方案）
               try {
-                const fileData = await fs.readBinaryFile(tempPath);
-                await fs.writeBinaryFile(vsixPath, fileData);
+            const fileData = await fs.readBinaryFile(tempPath);
+            await fs.writeBinaryFile(vsixPath, fileData);
                 console.log('文件已复制到:', vsixPath);
               } catch (copyError: any) {
                 console.error('复制文件失败:', copyError);
@@ -564,42 +564,42 @@ export class ExtensionService {
               }
               // 删除临时文件（不阻塞主流程）
               fs.removeFile(tempPath).catch((e) => {
-                console.warn('删除临时文件失败:', e);
+              console.warn('删除临时文件失败:', e);
               });
-            }
-          } else {
-            // 浏览器环境或 Blob 结果
-            const blob = downloadResult as Blob;
-            const arrayBuffer = await blob.arrayBuffer();
-            await fs.writeBinaryFile(vsixPath, new Uint8Array(arrayBuffer));
           }
-          
-          onProgress?.('文件保存完成，正在解压扩展...', 75);
-          
+        } else {
+          // 浏览器环境或 Blob 结果
+          const blob = downloadResult as Blob;
+          const arrayBuffer = await blob.arrayBuffer();
+          await fs.writeBinaryFile(vsixPath, new Uint8Array(arrayBuffer));
+        }
+        
+        onProgress?.('文件保存完成，正在解压扩展...', 75);
+        
           // 解压 VSIX 并加载扩展（异步执行，不阻塞安装流程）
           // 使用 Promise.resolve().then() 确保异步执行，不会阻塞主流程
           Promise.resolve().then(async () => {
-            try {
+        try {
               // 添加小延迟，确保文件写入完成
               await new Promise(resolve => setTimeout(resolve, 200));
               
-              const { ExtensionLoader } = await import('./extensionLoader');
+          const { ExtensionLoader } = await import('./extensionLoader');
               console.log('开始解压扩展:', vsixPath);
-              const loaded = await ExtensionLoader.loadFromVSIX(vsixPath);
-              
+          const loaded = await ExtensionLoader.loadFromVSIX(vsixPath);
+          
               console.log('扩展解压完成:', loaded.id);
-              
-              // 尝试激活扩展
-              try {
-                await ExtensionLoader.activateExtension(loaded.id);
-                console.log(`扩展 ${loaded.id} 安装并激活成功`);
-              } catch (activateError: any) {
-                console.warn(`激活扩展 ${loaded.id} 失败:`, activateError);
-                // 不影响安装流程
-              }
-            } catch (loadError: any) {
-              console.warn('加载扩展失败（扩展已安装，但未激活）:', loadError);
-              // 不影响安装流程，扩展已保存
+          
+          // 尝试激活扩展
+          try {
+            await ExtensionLoader.activateExtension(loaded.id);
+            console.log(`扩展 ${loaded.id} 安装并激活成功`);
+          } catch (activateError: any) {
+            console.warn(`激活扩展 ${loaded.id} 失败:`, activateError);
+            // 不影响安装流程
+          }
+        } catch (loadError: any) {
+          console.warn('加载扩展失败（扩展已安装，但未激活）:', loadError);
+          // 不影响安装流程，扩展已保存
             }
           }).catch((error: any) => {
             console.error('异步解压扩展时发生未捕获的错误:', error);

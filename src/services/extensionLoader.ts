@@ -83,9 +83,9 @@ export class ExtensionLoader {
       let vsixData: Uint8Array;
       if (window.__TAURI__) {
         try {
-          const fs = await import('@tauri-apps/api/fs');
+        const fs = await import('@tauri-apps/api/fs');
           console.log('读取 VSIX 文件，路径:', vsixPath);
-          vsixData = await fs.readBinaryFile(vsixPath);
+        vsixData = await fs.readBinaryFile(vsixPath);
           console.log('VSIX 文件读取完成，大小:', vsixData.length, '字节');
         } catch (readError: any) {
           console.error('读取 VSIX 文件失败:', readError);
@@ -103,7 +103,7 @@ export class ExtensionLoader {
       let zip: JSZip;
       try {
         zip = await JSZip.loadAsync(vsixData);
-        console.log('VSIX 文件解压成功');
+      console.log('VSIX 文件解压成功');
       } catch (zipError: any) {
         console.error('解压 VSIX 文件失败:', zipError);
         throw new Error(`解压 VSIX 文件失败: ${zipError.message || zipError}`);
@@ -117,9 +117,9 @@ export class ExtensionLoader {
 
       let manifest: ExtensionManifest;
       try {
-        const packageJsonContent = await packageJsonFile.async('string');
+      const packageJsonContent = await packageJsonFile.async('string');
         manifest = JSON.parse(packageJsonContent);
-        console.log('扩展清单加载成功:', manifest.name);
+      console.log('扩展清单加载成功:', manifest.name);
       } catch (parseError: any) {
         console.error('解析 package.json 失败:', parseError);
         throw new Error(`解析扩展清单失败: ${parseError.message || parseError}`);
@@ -214,17 +214,17 @@ export class ExtensionLoader {
 
     for (const fileName of files) {
       try {
-        const file = zip.files[fileName];
-        
-        // 跳过目录
-        if (file.dir) {
-          continue;
-        }
+      const file = zip.files[fileName];
+      
+      // 跳过目录
+      if (file.dir) {
+        continue;
+      }
 
-        // 只解压扩展根目录下的文件
-        if (!fileName.startsWith(extensionRoot)) {
-          continue;
-        }
+      // 只解压扩展根目录下的文件
+      if (!fileName.startsWith(extensionRoot)) {
+        continue;
+      }
 
         // 获取相对路径（去掉 extensionRoot 前缀）
         let relativePath = fileName.substring(extensionRoot.length);
@@ -233,21 +233,21 @@ export class ExtensionLoader {
           relativePath = relativePath.substring(1);
         }
         
-        const filePath = await path.join(extensionPath, relativePath);
-        const fileDir = await path.dirname(filePath);
+      const filePath = await path.join(extensionPath, relativePath);
+      const fileDir = await path.dirname(filePath);
 
-        // 创建目录
-        try {
-          await fs.createDir(fileDir, { recursive: true });
-        } catch (e) {
+      // 创建目录
+      try {
+        await fs.createDir(fileDir, { recursive: true });
+      } catch (e) {
           // 目录可能已存在，忽略错误
-        }
+      }
 
         // 写入文件（分批处理，避免内存问题）
         try {
-          const fileData = await file.async('uint8array');
-          await fs.writeBinaryFile(filePath, fileData);
-          extractedCount++;
+      const fileData = await file.async('uint8array');
+      await fs.writeBinaryFile(filePath, fileData);
+      extractedCount++;
           
           // 每解压 100 个文件输出一次进度
           if (extractedCount % 100 === 0) {
@@ -346,15 +346,15 @@ export class ExtensionLoader {
       // 调用扩展的 activate 函数
       console.log(`调用扩展 ${extensionId} 的 activate 函数`);
       try {
-        const exports = await mainFile.activate(extensionContext);
-        extension.exports = exports;
+      const exports = await mainFile.activate(extensionContext);
+      extension.exports = exports;
         console.log(`扩展 ${extensionId} 的 activate 函数执行成功`);
       } catch (activateError: any) {
         console.warn(`扩展 ${extensionId} 的 activate 函数执行失败:`, activateError);
         // 记录详细的错误信息以便调试
         if (activateError.message) {
           console.warn(`错误消息: ${activateError.message}`);
-        }
+      }
         if (activateError.stack) {
           console.warn(`错误堆栈: ${activateError.stack}`);
         }
@@ -955,8 +955,8 @@ export class ExtensionLoader {
             if (extensionDir) {
               const fullPath = extensionDir.path;
               
-              // 扩展已解压，直接加载
-              try {
+                // 扩展已解压，直接加载
+                try {
                 // 检查 package.json 是否在 extension 子目录中
                 let packageJsonPath = await path.join(fullPath, 'package.json');
                 let finalExtensionPath = fullPath;
@@ -971,26 +971,26 @@ export class ExtensionLoader {
                   }
                 }
                 
-                const packageJsonContent = await fs.readTextFile(packageJsonPath);
-                const manifest: ExtensionManifest = JSON.parse(packageJsonContent);
-                
-                const extension: LoadedExtension = {
-                  id: ext.id,
-                  manifest,
+                  const packageJsonContent = await fs.readTextFile(packageJsonPath);
+                  const manifest: ExtensionManifest = JSON.parse(packageJsonContent);
+                  
+                  const extension: LoadedExtension = {
+                    id: ext.id,
+                    manifest,
                   path: finalExtensionPath,
-                  activated: false,
-                };
-                
-                this.loadedExtensions.set(extension.id, extension);
-                
-                // 尝试激活扩展
-                try {
-                  await this.activateExtension(extension.id);
-                } catch (activateError: any) {
-                  console.warn(`激活扩展 ${extension.id} 失败:`, activateError);
-                }
-              } catch (error: any) {
-                console.error(`加载已解压扩展 ${ext.id} 失败:`, error);
+                    activated: false,
+                  };
+                  
+                  this.loadedExtensions.set(extension.id, extension);
+                  
+                  // 尝试激活扩展
+                  try {
+                    await this.activateExtension(extension.id);
+                  } catch (activateError: any) {
+                    console.warn(`激活扩展 ${extension.id} 失败:`, activateError);
+                  }
+                } catch (error: any) {
+                  console.error(`加载已解压扩展 ${ext.id} 失败:`, error);
                 // 如果加载失败，尝试从 VSIX 重新解压
                 try {
                   const loaded = await this.loadFromVSIX(ext.installedPath);
@@ -1008,10 +1008,10 @@ export class ExtensionLoader {
               console.log(`未找到扩展 ${ext.id} 的解压目录，尝试从 VSIX 解压...`);
               try {
                 const loaded = await this.loadFromVSIX(ext.installedPath);
-                try {
-                  await this.activateExtension(loaded.id);
-                } catch (activateError: any) {
-                  console.warn(`激活扩展 ${loaded.id} 失败:`, activateError);
+              try {
+                await this.activateExtension(loaded.id);
+              } catch (activateError: any) {
+                console.warn(`激活扩展 ${loaded.id} 失败:`, activateError);
                 }
               } catch (loadError: any) {
                 console.error(`从 VSIX 加载扩展 ${ext.id} 失败:`, loadError);
